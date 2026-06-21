@@ -5,9 +5,9 @@ description = "An implementation of a verifiable oblivious pseudorandom function
 edition = "2021"
 keywords = ["oprf"]
 license = "MIT"
-name = "voprf"
+name = "voprf-ng"
 readme = "README.md"
-repository = "https://github.com/facebook/voprf/"
+repository = "https://github.com/raphaelrobert/voprf-ng/"
 rust-version = "1.85"
 version = "0.6.0-pre.1"
 
