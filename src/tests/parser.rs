@@ -13,15 +13,13 @@ fn parse_ciphersuites(input: &str) -> String {
     let mut ciphersuites = vec![];
 
     let chunks: Vec<&str> = re.split(input).collect();
-    let mut count = 1;
-    for caps in re.captures_iter(input) {
+    for (count, caps) in re.captures_iter(input).enumerate() {
         let ciphersuite = format!(
             "\"{}\": {{ {} }}",
             &caps["ciphersuite"],
-            parse_modes(chunks[count])
+            parse_modes(chunks[count + 1])
         );
         ciphersuites.push(ciphersuite);
-        count += 1;
     }
 
     ciphersuites.join(",\n")
@@ -32,15 +30,13 @@ fn parse_modes(input: &str) -> String {
     let mut modes = vec![];
 
     let chunks: Vec<&str> = re.split(input).collect();
-    let mut count = 1;
-    for caps in re.captures_iter(input) {
+    for (count, caps) in re.captures_iter(input).enumerate() {
         let mode = format!(
             "\"{}\": [\n {} \n]",
             &caps["mode"],
-            parse_vectors(chunks[count])
+            parse_vectors(chunks[count + 1])
         );
         modes.push(mode);
-        count += 1;
     }
 
     modes.join(",\n")
@@ -53,11 +49,13 @@ fn parse_vectors(input: &str) -> String {
     let chunks: Vec<&str> = re.split(input).collect();
     let init_params = parse_params(chunks[0]);
 
-    let mut count = 1;
-    for _ in re.captures_iter(input) {
-        let params = format!("{{\n{},\n{}\n}}", init_params, parse_params(chunks[count]));
+    for (count, _) in re.captures_iter(input).enumerate() {
+        let params = format!(
+            "{{\n{},\n{}\n}}",
+            init_params,
+            parse_params(chunks[count + 1])
+        );
         vectors.push(params);
-        count += 1;
     }
 
     vectors.join(",\n")
