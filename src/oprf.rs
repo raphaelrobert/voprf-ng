@@ -82,7 +82,11 @@ impl<CS: CipherSuite> OprfClient<CS> {
     /// # Caution
     ///
     /// This should be used with caution, since it does not perform any checks
-    /// on the validity of the blinding factor!
+    /// on the validity of the blinding factor! In particular, a zero `blind`
+    /// has no multiplicative inverse: a later [`finalize`](Self::finalize) will
+    /// then panic on prime-order curves and produce a degenerate (identity)
+    /// output on Ristretto255. Only pass a `blind` known to be a non-zero
+    /// scalar.
     ///
     /// # Errors
     /// [`Error::Input`] if the `input` is empty or longer then [`u16::MAX`].

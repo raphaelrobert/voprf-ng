@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use core::num::NonZeroU32;
 use core::ops::Add;
 
 use digest::core_api::BlockSizeUser;
@@ -89,7 +88,15 @@ where
     }
 
     fn random_scalar<R: TryRngCore + TryCryptoRng>(rng: &mut R) -> Result<Self::Scalar> {
-        Ok(*SecretKey::<Self>::random(&mut CompatRng(rng)).to_nonzero_scalar())
+        let mut compat = CompatRng { rng, failed: false };
+        let scalar = *SecretKey::<Self>::random(&mut compat).to_nonzero_scalar();
+        // `SecretKey::random` drives an infallible RNG, so a failure of the
+        // wrapped fallible RNG is recorded in `failed` instead of panicking. The
+        // sentinel scalar produced on that path is discarded here.
+        if compat.failed {
+            return Err(Error::Rng);
+        }
+        Ok(scalar)
     }
 
     fn invert_scalar(scalar: Self::Scalar) -> Self::Scalar {
@@ -122,38 +129,62 @@ where
 /// Adapter allowing `rand_core 0.9` RNGs to satisfy the `elliptic_curve` 0.13
 /// requirement for `rand_core 0.6` traits.
 ///
+/// `elliptic_curve` 0.13 drives key generation through the infallible
+/// `rand_core 0.6` `RngCore` trait, but this crate accepts the fallible
+/// `TryRngCore`. Rather than panicking when the wrapped RNG fails, we record the
+/// failure in `failed` and emit a valid sentinel value so the infallible caller
+/// terminates promptly. The caller then maps `failed` to
+/// [`Error::Rng`](crate::Error::Rng) and discards the sentinel-derived scalar.
+///
 /// TODO #150: Remove this adapter when `elliptic_curve` migrates to `rand_core
 /// 0.9`.
-struct CompatRng<'a, R>(&'a mut R);
+struct CompatRng<'a, R> {
+    rng: &'a mut R,
+    failed: bool,
+}
+
+impl<'a, R> CompatRng<'a, R> {
+    /// Fills `dest` with a canonical, non-zero scalar representation (the
+    /// big-endian value `1`). This keeps `elliptic_curve`'s rejection sampling
+    /// from looping forever on the failure path: zero would be rejected as a
+    /// scalar and an all-ones buffer could exceed the group order.
+    fn fill_sentinel(dest: &mut [u8]) {
+        dest.fill(0);
+        if let Some(last) = dest.last_mut() {
+            *last = 1;
+        }
+    }
+}
 
 impl<'a, R> elliptic_curve::rand_core::RngCore for CompatRng<'a, R>
 where
     R: TryRngCore,
 {
     fn next_u32(&mut self) -> u32 {
-        self.0.try_next_u32().expect("RNG failure")
+        self.rng.try_next_u32().unwrap_or_else(|_| {
+            self.failed = true;
+            1
+        })
     }
 
     fn next_u64(&mut self) -> u64 {
-        self.0.try_next_u64().expect("RNG failure")
+        self.rng.try_next_u64().unwrap_or_else(|_| {
+            self.failed = true;
+            1
+        })
     }
 
     fn fill_bytes(&mut self, dest: &mut [u8]) {
-        self.0
-            .try_fill_bytes(dest)
-            .expect("RNG failure while filling bytes");
+        if self.rng.try_fill_bytes(dest).is_err() {
+            self.failed = true;
+            Self::fill_sentinel(dest);
+        }
     }
 
     fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), elliptic_curve::rand_core::Error> {
-        self.0.try_fill_bytes(dest).map_err(|_| compat_error())?;
+        self.fill_bytes(dest);
         Ok(())
     }
 }
 
 impl<'a, R> elliptic_curve::rand_core::CryptoRng for CompatRng<'a, R> where R: TryCryptoRng {}
-
-fn compat_error() -> elliptic_curve::rand_core::Error {
-    let code = NonZeroU32::new(elliptic_curve::rand_core::Error::CUSTOM_START)
-        .expect("CUSTOM_START must be non-zero");
-    elliptic_curve::rand_core::Error::from(code)
-}

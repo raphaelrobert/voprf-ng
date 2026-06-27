@@ -100,7 +100,12 @@ where
     /// [`Error::Rng`](crate::Error::Rng) if the random number generator fails.
     fn random_scalar<R: TryRngCore + TryCryptoRng>(rng: &mut R) -> Result<Self::Scalar>;
 
-    /// The multiplicative inverse of this scalar
+    /// The multiplicative inverse of this scalar.
+    ///
+    /// The zero scalar has no inverse. Implementations may panic or return a
+    /// degenerate value in that case, so callers must ensure `scalar` is
+    /// non-zero. All internal call sites uphold this (blinds and tweaks are
+    /// validated to be non-zero before inversion).
     fn invert_scalar(scalar: Self::Scalar) -> Self::Scalar;
 
     /// Returns `true` if the scalar is zero.

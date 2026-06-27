@@ -32,6 +32,7 @@ impl<CS: CipherSuite> OprfClient<CS> {
     /// [`Error::Deserialization`] if failed to deserialize `input`.
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let blind = deserialize_scalar::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self { blind })
     }
@@ -57,6 +58,7 @@ impl<CS: CipherSuite> VoprfClient<CS> {
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let blind = deserialize_scalar::<CS::Group>(&mut input)?;
         let blinded_element = deserialize_elem::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self {
             blind,
@@ -85,6 +87,7 @@ impl<CS: CipherSuite> PoprfClient<CS> {
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let blind = deserialize_scalar::<CS::Group>(&mut input)?;
         let blinded_element = deserialize_elem::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self {
             blind,
@@ -108,6 +111,7 @@ impl<CS: CipherSuite> OprfServer<CS> {
     /// [`Error::Deserialization`] if failed to deserialize `input`.
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let sk = deserialize_scalar::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self { sk })
     }
@@ -132,6 +136,7 @@ impl<CS: CipherSuite> VoprfServer<CS> {
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let sk = deserialize_scalar::<CS::Group>(&mut input)?;
         let pk = deserialize_elem::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self { sk, pk })
     }
@@ -156,6 +161,7 @@ impl<CS: CipherSuite> PoprfServer<CS> {
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let sk = deserialize_scalar::<CS::Group>(&mut input)?;
         let pk = deserialize_elem::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self { sk, pk })
     }
@@ -181,6 +187,7 @@ impl<CS: CipherSuite> Proof<CS> {
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let c_scalar = deserialize_scalar::<CS::Group>(&mut input)?;
         let s_scalar = deserialize_scalar::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Proof { c_scalar, s_scalar })
     }
@@ -201,6 +208,7 @@ impl<CS: CipherSuite> BlindedElement<CS> {
     /// [`Error::Deserialization`] if failed to deserialize `input`.
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let value = deserialize_elem::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self(value))
     }
@@ -221,8 +229,20 @@ impl<CS: CipherSuite> EvaluationElement<CS> {
     /// [`Error::Deserialization`] if failed to deserialize `input`.
     pub fn deserialize(mut input: &[u8]) -> Result<Self> {
         let value = deserialize_elem::<CS::Group>(&mut input)?;
+        check_consumed(input)?;
 
         Ok(Self(value))
+    }
+}
+
+/// Rejects trailing bytes after a fixed-length object has been fully read. The
+/// VOPRF wire formats are fixed-length, so any remaining input is a non-canonical
+/// encoding.
+fn check_consumed(input: &[u8]) -> Result<()> {
+    if input.is_empty() {
+        Ok(())
+    } else {
+        Err(Error::Deserialization)
     }
 }
 
@@ -375,5 +395,55 @@ mod test {
         fn test_nocrash_proof(bytes in vec(any::<u8>(), 0..200)) {
             test_deserialize!(Proof, bytes);
         }
+    }
+
+    use ::alloc::vec::Vec;
+    use rand::rngs::OsRng;
+
+    use crate::{CipherSuite, Error};
+
+    fn trailing_bytes_rejected<CS: CipherSuite>() {
+        let mut rng = OsRng;
+        let server = VoprfServer::<CS>::new(&mut rng).unwrap();
+        let blind_result = VoprfClient::<CS>::blind(b"input", &mut rng).unwrap();
+
+        // An exact-length encoding round-trips, a single trailing byte is
+        // rejected as a non-canonical encoding.
+        let server_bytes = server.serialize().to_vec();
+        VoprfServer::<CS>::deserialize(&server_bytes).unwrap();
+        assert!(matches!(
+            VoprfServer::<CS>::deserialize(&extend(&server_bytes)),
+            Err(Error::Deserialization)
+        ));
+
+        let client_bytes = blind_result.state.serialize().to_vec();
+        VoprfClient::<CS>::deserialize(&client_bytes).unwrap();
+        assert!(matches!(
+            VoprfClient::<CS>::deserialize(&extend(&client_bytes)),
+            Err(Error::Deserialization)
+        ));
+
+        let element_bytes = blind_result.message.serialize().to_vec();
+        BlindedElement::<CS>::deserialize(&element_bytes).unwrap();
+        assert!(matches!(
+            BlindedElement::<CS>::deserialize(&extend(&element_bytes)),
+            Err(Error::Deserialization)
+        ));
+    }
+
+    fn extend(bytes: &[u8]) -> Vec<u8> {
+        let mut extended = bytes.to_vec();
+        extended.push(0);
+        extended
+    }
+
+    #[test]
+    fn test_trailing_bytes_rejected() {
+        #[cfg(feature = "ristretto255")]
+        trailing_bytes_rejected::<crate::Ristretto255>();
+
+        trailing_bytes_rejected::<p256::NistP256>();
+        trailing_bytes_rejected::<p384::NistP384>();
+        trailing_bytes_rejected::<p521::NistP521>();
     }
 }
