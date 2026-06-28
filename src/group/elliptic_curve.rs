@@ -13,7 +13,7 @@ use elliptic_curve::{
 };
 use generic_array::typenum::{IsLess, IsLessOrEqual, Sum, U256};
 use generic_array::{ArrayLength, GenericArray};
-use rand_core::{TryCryptoRng, TryRngCore};
+use rand_core::{TryCryptoRng, TryRng};
 
 use super::Group;
 use crate::{Error, InternalError, Result};
@@ -87,7 +87,7 @@ where
             .map_err(|_| Error::Deserialization)
     }
 
-    fn random_scalar<R: TryRngCore + TryCryptoRng>(rng: &mut R) -> Result<Self::Scalar> {
+    fn random_scalar<R: TryRng + TryCryptoRng>(rng: &mut R) -> Result<Self::Scalar> {
         let mut compat = CompatRng { rng, failed: false };
         let scalar = *SecretKey::<Self>::random(&mut compat).to_nonzero_scalar();
         // `SecretKey::random` drives an infallible RNG, so a failure of the
@@ -126,18 +126,18 @@ where
     }
 }
 
-/// Adapter allowing `rand_core 0.9` RNGs to satisfy the `elliptic_curve` 0.13
+/// Adapter allowing `rand_core 0.10` RNGs to satisfy the `elliptic_curve` 0.13
 /// requirement for `rand_core 0.6` traits.
 ///
 /// `elliptic_curve` 0.13 drives key generation through the infallible
 /// `rand_core 0.6` `RngCore` trait, but this crate accepts the fallible
-/// `TryRngCore`. Rather than panicking when the wrapped RNG fails, we record the
+/// `TryRng`. Rather than panicking when the wrapped RNG fails, we record the
 /// failure in `failed` and emit a valid sentinel value so the infallible caller
 /// terminates promptly. The caller then maps `failed` to
 /// [`Error::Rng`](crate::Error::Rng) and discards the sentinel-derived scalar.
 ///
-/// TODO #150: Remove this adapter when `elliptic_curve` migrates to `rand_core
-/// 0.9`.
+/// TODO #150: Remove this adapter when `elliptic_curve` migrates to a current
+/// `rand_core`.
 struct CompatRng<'a, R> {
     rng: &'a mut R,
     failed: bool,
@@ -158,7 +158,7 @@ impl<'a, R> CompatRng<'a, R> {
 
 impl<'a, R> elliptic_curve::rand_core::RngCore for CompatRng<'a, R>
 where
-    R: TryRngCore,
+    R: TryRng,
 {
     fn next_u32(&mut self) -> u32 {
         self.rng.try_next_u32().unwrap_or_else(|_| {

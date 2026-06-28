@@ -398,12 +398,12 @@ mod test {
     }
 
     use ::alloc::vec::Vec;
-    use rand::rngs::OsRng;
+    use rand::rngs::SysRng;
 
     use crate::{CipherSuite, Error};
 
     fn trailing_bytes_rejected<CS: CipherSuite>() {
-        let mut rng = OsRng;
+        let mut rng = SysRng;
         let server = VoprfServer::<CS>::new(&mut rng).unwrap();
         let blind_result = VoprfClient::<CS>::blind(b"input", &mut rng).unwrap();
 

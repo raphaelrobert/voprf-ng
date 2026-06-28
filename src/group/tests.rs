@@ -2,7 +2,7 @@
 
 //! Includes a series of tests for the group implementations
 
-use rand_core::{TryCryptoRng, TryRngCore};
+use rand_core::{TryCryptoRng, TryRng};
 
 use crate::{Error, Group, Result};
 
@@ -67,7 +67,11 @@ impl core::fmt::Display for FailingRngError {
     }
 }
 
-impl TryRngCore for FailingRng {
+// `rand_core 0.10` requires the `TryRng::Error` type to implement
+// `core::error::Error`, which in turn needs `Debug` and `Display`.
+impl core::error::Error for FailingRngError {}
+
+impl TryRng for FailingRng {
     type Error = FailingRngError;
 
     fn try_next_u32(&mut self) -> Result<u32, Self::Error> {
