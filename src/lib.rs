@@ -250,8 +250,9 @@
 //! # use voprf_ng::VoprfServer;
 //! # let mut server_rng = SysRng;
 //! # let server = VoprfServer::<CipherSuite>::new(&mut server_rng).unwrap();
-//! let VoprfServerEvaluateResult { message, proof } =
-//!     server.blind_evaluate(&mut server_rng, &client_blind_result.message);
+//! let VoprfServerEvaluateResult { message, proof } = server
+//!     .blind_evaluate(&mut server_rng, &client_blind_result.message)
+//!     .expect("Unable to perform server evaluation");
 //! ```
 //!
 //! ### Client Finalization
@@ -280,7 +281,7 @@
 //! # let server_evaluate_result = server.blind_evaluate(
 //! #     &mut server_rng,
 //! #     &client_blind_result.message,
-//! # );
+//! # ).expect("Unable to perform server evaluation");
 //! let client_finalize_result = client_blind_result
 //!     .state
 //!     .finalize(
@@ -321,7 +322,7 @@
 //! # let server_evaluate_result = server.blind_evaluate(
 //! #     &mut server_rng,
 //! #     &client_blind_result.message,
-//! # );
+//! # ).expect("Unable to perform server evaluation");
 //! let client_finalize_result = client_blind_result
 //!     .state
 //!     .finalize(

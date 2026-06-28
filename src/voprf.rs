@@ -68,7 +68,8 @@ impl<CS: CipherSuite> VoprfClient<CS> {
     /// DH-OPRF.
     ///
     /// # Errors
-    /// [`Error::Input`] if the `input` is empty or longer then [`u16::MAX`].
+    /// - [`Error::Input`] if the `input` is empty or longer then [`u16::MAX`].
+    /// - [`Error::Rng`] if the random number generator fails.
     pub fn blind<R: TryRng + TryCryptoRng>(
         input: &[u8],
         blinding_factor_rng: &mut R,
@@ -193,10 +194,10 @@ impl<CS: CipherSuite> VoprfServer<CS> {
     /// Produces a new instance of a [VoprfServer] using a supplied RNG
     ///
     /// # Errors
-    /// [`Error::Protocol`] if the protocol fails and can't be completed.
+    /// [`Error::Rng`] if the random number generator fails.
     pub fn new<R: TryRng + TryCryptoRng>(rng: &mut R) -> Result<Self> {
         let mut seed = GenericArray::<_, <CS::Group as Group>::ScalarLen>::default();
-        rng.try_fill_bytes(&mut seed).map_err(|_| Error::Protocol)?;
+        rng.try_fill_bytes(&mut seed).map_err(|_| Error::Rng)?;
         // This can't fail as the hash output is type constrained.
         Self::new_from_seed(&seed, &[])
     }
@@ -236,30 +237,30 @@ impl<CS: CipherSuite> VoprfServer<CS> {
     /// Computes the second step for the multiplicative blinding version of
     /// DH-OPRF. This message is sent from the server (who holds the OPRF key)
     /// to the client.
+    ///
+    /// # Errors
+    /// [`Error::Rng`] if the random number generator fails.
     pub fn blind_evaluate<R: TryRng + TryCryptoRng>(
         &self,
         rng: &mut R,
         blinded_element: &BlindedElement<CS>,
-    ) -> VoprfServerEvaluateResult<CS> {
+    ) -> Result<VoprfServerEvaluateResult<CS>> {
         let mut prepared_evaluation_elements =
             self.batch_blind_evaluate_prepare(iter::once(blinded_element));
         let prepared_evaluation_element = [prepared_evaluation_elements.next().unwrap()];
 
-        // This can't fail because we know the size of the inputs.
         let VoprfServerBatchEvaluateFinishResult {
             mut messages,
             proof,
-        } = self
-            .batch_blind_evaluate_finish(
-                rng,
-                iter::once(blinded_element),
-                &prepared_evaluation_element,
-            )
-            .unwrap();
+        } = self.batch_blind_evaluate_finish(
+            rng,
+            iter::once(blinded_element),
+            &prepared_evaluation_element,
+        )?;
 
         let message = messages.next().unwrap();
 
-        VoprfServerEvaluateResult { message, proof }
+        Ok(VoprfServerEvaluateResult { message, proof })
     }
 
     /// Allows for batching of the evaluation of multiple [BlindedElement]
@@ -575,7 +576,9 @@ mod tests {
         let mut rng = SysRng;
         let client_blind_result = VoprfClient::<CS>::blind(input, &mut rng).unwrap();
         let server = VoprfServer::<CS>::new(&mut rng).unwrap();
-        let server_result = server.blind_evaluate(&mut rng, &client_blind_result.message);
+        let server_result = server
+            .blind_evaluate(&mut rng, &client_blind_result.message)
+            .unwrap();
         let client_finalize_result = client_blind_result
             .state
             .finalize(
@@ -674,7 +677,9 @@ mod tests {
         let mut rng = SysRng;
         let client_blind_result = VoprfClient::<CS>::blind(input, &mut rng).unwrap();
         let server = VoprfServer::<CS>::new(&mut rng).unwrap();
-        let server_result = server.blind_evaluate(&mut rng, &client_blind_result.message);
+        let server_result = server
+            .blind_evaluate(&mut rng, &client_blind_result.message)
+            .unwrap();
         let wrong_pk = {
             let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, Mode::Oprf);
             // Choose a group element that is unlikely to be the right public key
@@ -694,7 +699,9 @@ mod tests {
         let mut rng = SysRng;
         let client_blind_result = VoprfClient::<CS>::blind(input, &mut rng).unwrap();
         let server = VoprfServer::<CS>::new(&mut rng).unwrap();
-        let server_result = server.blind_evaluate(&mut rng, &client_blind_result.message);
+        let server_result = server
+            .blind_evaluate(&mut rng, &client_blind_result.message)
+            .unwrap();
 
         let client_finalize = client_blind_result
             .state
@@ -737,7 +744,9 @@ mod tests {
         let mut rng = SysRng;
         let client_blind_result = VoprfClient::<CS>::blind(input, &mut rng).unwrap();
         let server = VoprfServer::<CS>::new(&mut rng).unwrap();
-        let server_result = server.blind_evaluate(&mut rng, &client_blind_result.message);
+        let server_result = server
+            .blind_evaluate(&mut rng, &client_blind_result.message)
+            .unwrap();
 
         let mut state = server;
         unsafe { ptr::drop_in_place(&mut state) };
