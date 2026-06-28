@@ -236,8 +236,8 @@ impl<CS: CipherSuite> EvaluationElement<CS> {
 }
 
 /// Rejects trailing bytes after a fixed-length object has been fully read. The
-/// VOPRF wire formats are fixed-length, so any remaining input is a non-canonical
-/// encoding.
+/// VOPRF wire formats are fixed-length, so any remaining input is a
+/// non-canonical encoding.
 fn check_consumed(input: &[u8]) -> Result<()> {
     if input.is_empty() {
         Ok(())

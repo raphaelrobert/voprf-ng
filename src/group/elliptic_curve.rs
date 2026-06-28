@@ -134,7 +134,7 @@ where
 /// `TryRng`. Rather than panicking when the wrapped RNG fails, we record the
 /// failure in `failed` and emit a valid sentinel value so the infallible caller
 /// terminates promptly. The caller then maps `failed` to
-/// [`Error::Rng`](crate::Error::Rng) and discards the sentinel-derived scalar.
+/// [`Error::Rng`] and discards the sentinel-derived scalar.
 ///
 /// TODO #150: Remove this adapter when `elliptic_curve` migrates to a current
 /// `rand_core`.
