@@ -27,7 +27,7 @@ curve25519-dalek = { version = "4", default-features = false, features = [
 derive-where = { version = "1", features = ["zeroize-on-drop"] }
 digest = "0.10"
 displaydoc = { version = "0.2", default-features = false }
-elliptic-curve = { version = "0.13", features = [
+elliptic-curve = { version = "0.14", features = [
   "hash2curve",
   "sec1",
   "voprf",
