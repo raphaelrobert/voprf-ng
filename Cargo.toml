@@ -8,7 +8,7 @@ name = "voprf-ng"
 readme = "README.md"
 repository = "https://github.com/raphaelrobert/voprf-ng/"
 rust-version = "1.85"
-version = "0.6.0-pre.2"
+version = "0.6.0-pre.3"
 
 [features]
 alloc = []

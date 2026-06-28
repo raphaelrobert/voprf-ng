@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.0-pre.3 (June 28, 2026)
+* RNG failures are now returned as `Error::Rng` instead of panicking or being
+  reported as `Error::Protocol`
+* `VoprfServer::blind_evaluate` now returns a `Result`
+
 ## 0.6.0-pre.1 (April 6, 2026)
 * MSRV bumped to 1.85
 * Updated rand_core dependency to 0.9
