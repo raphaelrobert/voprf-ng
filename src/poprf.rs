@@ -68,7 +68,8 @@ impl<CS: CipherSuite> PoprfClient<CS> {
     /// DH-OPRF.
     ///
     /// # Errors
-    /// [`Error::Input`] if the `input` is empty or longer than [`u16::MAX`].
+    /// - [`Error::Input`] if the `input` is empty or longer than [`u16::MAX`].
+    /// - [`Error::Rng`] if the random number generator fails.
     pub fn blind<R: TryRng + TryCryptoRng>(
         input: &[u8],
         blinding_factor_rng: &mut R,
@@ -186,10 +187,10 @@ impl<CS: CipherSuite> PoprfServer<CS> {
     /// Produces a new instance of a [PoprfServer] using a supplied RNG
     ///
     /// # Errors
-    /// [`Error::Protocol`] if the protocol fails and can't be completed.
+    /// [`Error::Rng`] if the random number generator fails.
     pub fn new<R: TryRng + TryCryptoRng>(rng: &mut R) -> Result<Self> {
         let mut seed = GenericArray::<_, <CS::Group as Group>::ScalarLen>::default();
-        rng.try_fill_bytes(&mut seed).map_err(|_| Error::Protocol)?;
+        rng.try_fill_bytes(&mut seed).map_err(|_| Error::Rng)?;
 
         Self::new_from_seed(&seed, &[])
     }
@@ -233,6 +234,7 @@ impl<CS: CipherSuite> PoprfServer<CS> {
     /// # Errors
     /// - [`Error::Info`] if the `info` is longer than `u16::MAX`.
     /// - [`Error::Protocol`] if the protocol fails and can't be completed.
+    /// - [`Error::Rng`] if the random number generator fails.
     pub fn blind_evaluate<R: TryRng + TryCryptoRng>(
         &self,
         rng: &mut R,
@@ -255,8 +257,7 @@ impl<CS: CipherSuite> PoprfServer<CS> {
             iter::once(blinded_element),
             prepared_evaluation_elements,
             &prepared_tweak,
-        )
-        .unwrap();
+        )?;
 
         Ok(PoprfServerEvaluateResult {
             message: messages.next().unwrap(),
@@ -270,6 +271,7 @@ impl<CS: CipherSuite> PoprfServer<CS> {
     /// # Errors
     /// - [`Error::Info`] if the `info` is longer than `u16::MAX`.
     /// - [`Error::Protocol`] if the protocol fails and can't be completed.
+    /// - [`Error::Rng`] if the random number generator fails.
     #[cfg(feature = "alloc")]
     pub fn batch_blind_evaluate<'a, R: TryRng + TryCryptoRng, IE>(
         &self,
@@ -289,15 +291,13 @@ impl<CS: CipherSuite> PoprfServer<CS> {
 
         let prepared_evaluation_elements: Vec<_> = prepared_evaluation_elements.collect();
 
-        // This can't fail because we know the size of the inputs.
         let PoprfServerBatchEvaluateFinishResult { messages, proof } =
             Self::batch_blind_evaluate_finish::<_, _, Vec<_>>(
                 rng,
                 blinded_elements.into_iter(),
                 &prepared_evaluation_elements,
                 &prepared_tweak,
-            )
-            .unwrap();
+            )?;
 
         let messages: Vec<_> = messages.collect();
 

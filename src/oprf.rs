@@ -66,7 +66,8 @@ impl<CS: CipherSuite> OprfClient<CS> {
     /// DH-OPRF.
     ///
     /// # Errors
-    /// [`Error::Input`] if the `input` is empty or longer then [`u16::MAX`].
+    /// - [`Error::Input`] if the `input` is empty or longer then [`u16::MAX`].
+    /// - [`Error::Rng`] if the random number generator fails.
     pub fn blind<R: TryRng + TryCryptoRng>(
         input: &[u8],
         blinding_factor_rng: &mut R,
@@ -143,10 +144,10 @@ impl<CS: CipherSuite> OprfServer<CS> {
     /// Produces a new instance of a [OprfServer] using a supplied RNG
     ///
     /// # Errors
-    /// [`Error::Protocol`] if the protocol fails and can't be completed.
+    /// [`Error::Rng`] if the random number generator fails.
     pub fn new<R: TryRng + TryCryptoRng>(rng: &mut R) -> Result<Self> {
         let mut seed = GenericArray::<_, <CS::Group as Group>::ScalarLen>::default();
-        rng.try_fill_bytes(&mut seed).map_err(|_| Error::Protocol)?;
+        rng.try_fill_bytes(&mut seed).map_err(|_| Error::Rng)?;
         Self::new_from_seed(&seed, &[])
     }
 
