@@ -285,9 +285,9 @@ dependencies = [
 
 [[package]]
 name = "generic-array"
-version = "1.4.3"
+version = "1.4.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2e55f16dcf0e9c00efbe2e655ffe45fc98e7066b52bc92f8a79e64060a79351"
+checksum = "337d46834ee672ab3e48caca2cb0c78cc174fb12b3a68d0d88f99a0519a5e36e"
 dependencies = [
  "rustversion",
  "serde_core",
@@ -756,7 +756,7 @@ dependencies = [
  "digest 0.10.7",
  "displaydoc",
  "elliptic-curve",
- "generic-array 1.4.3",
+ "generic-array 1.4.5",
  "hex",
  "p256",
  "p384",
