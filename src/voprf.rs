@@ -8,8 +8,8 @@ use core::iter::{self, Map, Repeat, Zip};
 
 use derive_where::derive_where;
 use digest::{Digest, Output};
-use generic_array::typenum::Unsigned;
-use generic_array::GenericArray;
+use hybrid_array::typenum::Unsigned;
+use hybrid_array::Array;
 use rand_core::{TryCryptoRng, TryRng};
 
 use crate::common::{
@@ -196,7 +196,7 @@ impl<CS: CipherSuite> VoprfServer<CS> {
     /// # Errors
     /// [`Error::Rng`] if the random number generator fails.
     pub fn new<R: TryRng + TryCryptoRng>(rng: &mut R) -> Result<Self> {
-        let mut seed = GenericArray::<_, <CS::Group as Group>::ScalarLen>::default();
+        let mut seed = Array::<u8, <CS::Group as Group>::ScalarLen>::default();
         rng.try_fill_bytes(&mut seed).map_err(|_| Error::Rng)?;
         // This can't fail as the hash output is type constrained.
         Self::new_from_seed(&seed, &[])
@@ -560,7 +560,7 @@ mod tests {
         key: <CS::Group as Group>::Scalar,
         mode: Mode,
     ) -> Output<CS::Hash> {
-        let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, mode);
+        let dst = Dst::new::<CS, _>(STR_HASH_TO_GROUP, mode);
         let point = CS::Group::hash_to_curve::<CS::Hash>(&[input], &dst.as_dst()).unwrap();
 
         let res = point * &key;
@@ -663,7 +663,7 @@ mod tests {
             .unwrap();
         let messages: Vec<_> = messages.collect();
         let wrong_pk = {
-            let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, Mode::Oprf);
+            let dst = Dst::new::<CS, _>(STR_HASH_TO_GROUP, Mode::Oprf);
             // Choose a group element that is unlikely to be the right public
             // key
             CS::Group::hash_to_curve::<CS::Hash>(&[b"msg"], &dst.as_dst()).unwrap()
@@ -682,7 +682,7 @@ mod tests {
             .blind_evaluate(&mut rng, &client_blind_result.message)
             .unwrap();
         let wrong_pk = {
-            let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, Mode::Oprf);
+            let dst = Dst::new::<CS, _>(STR_HASH_TO_GROUP, Mode::Oprf);
             // Choose a group element that is unlikely to be the right public
             // key
             CS::Group::hash_to_curve::<CS::Hash>(&[b"msg"], &dst.as_dst()).unwrap()

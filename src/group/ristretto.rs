@@ -1,14 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
+use core::num::NonZeroU16;
+
 use curve25519_dalek::constants::RISTRETTO_BASEPOINT_POINT;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::Identity;
-use digest::core_api::BlockSizeUser;
+use digest::block_api::BlockSizeUser;
 use digest::{FixedOutput, HashMarker};
-use elliptic_curve::hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
-use generic_array::typenum::{IsLess, IsLessOrEqual, U256, U32, U64};
-use generic_array::GenericArray;
+use hash2curve::{ExpandMsg, ExpandMsgXmd, Expander};
+use hybrid_array::typenum::{IsGreaterOrEqual, IsLessOrEqual, Prod, True, U16, U2, U32};
+use hybrid_array::Array;
 use rand_core::{TryCryptoRng, TryRng};
 use subtle::ConstantTimeEq;
 
@@ -21,7 +23,7 @@ pub struct Ristretto255;
 
 #[cfg(feature = "ristretto255-ciphersuite")]
 impl crate::CipherSuite for Ristretto255 {
-    const ID: &'static str = "ristretto255-SHA512";
+    const ID: &'static [u8] = b"ristretto255-SHA512";
 
     type Group = Ristretto255;
 
@@ -37,19 +39,21 @@ impl Group for Ristretto255 {
 
     type ScalarLen = U32;
 
+    // The 128-bit target security level of
+    // https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B
+    type SecurityLevel = U16;
+
     // Implements the `hash_to_ristretto255()` function from
     // https://www.rfc-editor.org/rfc/rfc9380.html#appendix-B
     fn hash_to_curve<H>(input: &[&[u8]], dst: &[&[u8]]) -> Result<Self::Elem, InternalError>
     where
         H: BlockSizeUser + Default + FixedOutput + HashMarker,
-        H::OutputSize: IsLess<U256> + IsLessOrEqual<H::BlockSize>,
+        H::OutputSize: IsLessOrEqual<H::BlockSize, Output = True>
+            + IsGreaterOrEqual<Prod<Self::SecurityLevel, U2>, Output = True>,
     {
-        let mut uniform_bytes = GenericArray::<_, U64>::default();
-        ExpandMsgXmd::<H>::expand_message(input, dst, 64)
-            .map_err(|_| InternalError::Input)?
-            .fill_bytes(&mut uniform_bytes);
+        let uniform_bytes = expand_message::<H>(input, dst)?;
 
-        Ok(RistrettoPoint::from_uniform_bytes(&uniform_bytes.into()))
+        Ok(RistrettoPoint::from_uniform_bytes(&uniform_bytes))
     }
 
     // Implements the `HashToScalar()` function from
@@ -57,14 +61,12 @@ impl Group for Ristretto255 {
     fn hash_to_scalar<H>(input: &[&[u8]], dst: &[&[u8]]) -> Result<Self::Scalar, InternalError>
     where
         H: BlockSizeUser + Default + FixedOutput + HashMarker,
-        H::OutputSize: IsLess<U256> + IsLessOrEqual<H::BlockSize>,
+        H::OutputSize: IsLessOrEqual<H::BlockSize, Output = True>
+            + IsGreaterOrEqual<Prod<Self::SecurityLevel, U2>, Output = True>,
     {
-        let mut uniform_bytes = GenericArray::<_, U64>::default();
-        ExpandMsgXmd::<H>::expand_message(input, dst, 64)
-            .map_err(|_| InternalError::Input)?
-            .fill_bytes(&mut uniform_bytes);
+        let uniform_bytes = expand_message::<H>(input, dst)?;
 
-        Ok(Scalar::from_bytes_mod_order_wide(&uniform_bytes.into()))
+        Ok(Scalar::from_bytes_mod_order_wide(&uniform_bytes))
     }
 
     fn base_elem() -> Self::Elem {
@@ -76,7 +78,7 @@ impl Group for Ristretto255 {
     }
 
     // serialization of a group element
-    fn serialize_elem(elem: Self::Elem) -> GenericArray<u8, Self::ElemLen> {
+    fn serialize_elem(elem: Self::Elem) -> Array<u8, Self::ElemLen> {
         elem.compress().to_bytes().into()
     }
 
@@ -113,7 +115,7 @@ impl Group for Ristretto255 {
         Scalar::ZERO
     }
 
-    fn serialize_scalar(scalar: Self::Scalar) -> GenericArray<u8, Self::ScalarLen> {
+    fn serialize_scalar(scalar: Self::Scalar) -> Array<u8, Self::ScalarLen> {
         scalar.to_bytes().into()
     }
 
@@ -125,4 +127,26 @@ impl Group for Ristretto255 {
             .filter(|scalar| scalar != &Scalar::ZERO)
             .ok_or(Error::Deserialization)
     }
+}
+
+/// Both `hash_to_ristretto255()` and `HashToScalar()` expand the input to 64
+/// uniform bytes.
+const UNIFORM_BYTES_LEN: NonZeroU16 = NonZeroU16::new(64).unwrap();
+
+fn expand_message<H>(input: &[&[u8]], dst: &[&[u8]]) -> Result<[u8; 64], InternalError>
+where
+    H: BlockSizeUser + Default + FixedOutput + HashMarker,
+    H::OutputSize: IsLessOrEqual<H::BlockSize, Output = True>
+        + IsGreaterOrEqual<Prod<<Ristretto255 as Group>::SecurityLevel, U2>, Output = True>,
+{
+    let mut uniform_bytes = [0; 64];
+    <ExpandMsgXmd<H> as ExpandMsg<<Ristretto255 as Group>::SecurityLevel>>::expand_message(
+        input,
+        dst,
+        UNIFORM_BYTES_LEN,
+    )
+    .map_err(|_| InternalError::Input)?
+    .fill_bytes(&mut uniform_bytes)
+    .map_err(|_| InternalError::Input)?;
+    Ok(uniform_bytes)
 }

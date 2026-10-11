@@ -8,10 +8,10 @@ mod ristretto;
 
 use core::ops::{Add, Mul, Sub};
 
-use digest::core_api::BlockSizeUser;
+use digest::block_api::BlockSizeUser;
 use digest::{FixedOutput, HashMarker};
-use generic_array::typenum::{IsLess, IsLessOrEqual, Sum, U256};
-use generic_array::{ArrayLength, GenericArray};
+use hybrid_array::typenum::{IsGreaterOrEqual, IsLessOrEqual, Prod, Sum, True, Unsigned, U2};
+use hybrid_array::{Array, ArraySize};
 use rand_core::{TryCryptoRng, TryRng};
 #[cfg(feature = "ristretto255")]
 pub use ristretto::Ristretto255;
@@ -26,10 +26,10 @@ pub trait Group
 where
     // `VoprfClientLen`, `PoprfClientLen`, `VoprfServerLen`, `PoprfServerLen`
     Self::ScalarLen: Add<Self::ElemLen>,
-    Sum<Self::ScalarLen, Self::ElemLen>: ArrayLength,
+    Sum<Self::ScalarLen, Self::ElemLen>: ArraySize,
     // `ProofLen`
     Self::ScalarLen: Add<Self::ScalarLen>,
-    Sum<Self::ScalarLen, Self::ScalarLen>: ArrayLength,
+    Sum<Self::ScalarLen, Self::ScalarLen>: ArraySize,
 {
     /// The type of group elements
     type Elem: ConstantTimeEq
@@ -39,7 +39,7 @@ where
         + for<'a> Mul<&'a Self::Scalar, Output = Self::Elem>;
 
     /// The byte length necessary to represent group elements
-    type ElemLen: ArrayLength + 'static;
+    type ElemLen: ArraySize + 'static;
 
     /// The type of base field scalars
     type Scalar: ConstantTimeEq
@@ -50,7 +50,13 @@ where
         + for<'a> Sub<&'a Self::Scalar, Output = Self::Scalar>;
 
     /// The byte length necessary to represent scalars
-    type ScalarLen: ArrayLength + 'static;
+    type ScalarLen: ArraySize + 'static;
+
+    /// The target security level in bytes, as defined in
+    /// <https://www.rfc-editor.org/rfc/rfc9380.html#name-target-security-levels>.
+    /// The hash passed to [`Group::hash_to_curve`] and
+    /// [`Group::hash_to_scalar`] must output at least twice this many bytes.
+    type SecurityLevel: Unsigned + Mul<U2>;
 
     /// Transforms a password and domain separation tag (DST) into a curve point
     ///
@@ -60,7 +66,8 @@ where
     fn hash_to_curve<H>(input: &[&[u8]], dst: &[&[u8]]) -> Result<Self::Elem, InternalError>
     where
         H: BlockSizeUser + Default + FixedOutput + HashMarker,
-        H::OutputSize: IsLess<U256> + IsLessOrEqual<H::BlockSize>;
+        H::OutputSize: IsLessOrEqual<H::BlockSize, Output = True>
+            + IsGreaterOrEqual<Prod<Self::SecurityLevel, U2>, Output = True>;
 
     /// Hashes a slice of pseudo-random bytes to a scalar
     ///
@@ -70,7 +77,8 @@ where
     fn hash_to_scalar<H>(input: &[&[u8]], dst: &[&[u8]]) -> Result<Self::Scalar, InternalError>
     where
         H: BlockSizeUser + Default + FixedOutput + HashMarker,
-        H::OutputSize: IsLess<U256> + IsLessOrEqual<H::BlockSize>;
+        H::OutputSize: IsLessOrEqual<H::BlockSize, Output = True>
+            + IsGreaterOrEqual<Prod<Self::SecurityLevel, U2>, Output = True>;
 
     /// Get the base point for the group
     fn base_elem() -> Self::Elem;
@@ -84,7 +92,7 @@ where
     }
 
     /// Serializes the `self` group element
-    fn serialize_elem(elem: Self::Elem) -> GenericArray<u8, Self::ElemLen>;
+    fn serialize_elem(elem: Self::Elem) -> Array<u8, Self::ElemLen>;
 
     /// Return an element from its fixed-length bytes representation. If the
     /// element is the identity element, return an error.
@@ -116,7 +124,7 @@ where
     fn zero_scalar() -> Self::Scalar;
 
     /// Serializes a scalar to bytes
-    fn serialize_scalar(scalar: Self::Scalar) -> GenericArray<u8, Self::ScalarLen>;
+    fn serialize_scalar(scalar: Self::Scalar) -> Array<u8, Self::ScalarLen>;
 
     /// Return a scalar from its fixed-length bytes representation. If the
     /// scalar is zero or invalid, then return an error.

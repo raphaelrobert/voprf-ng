@@ -7,9 +7,8 @@ use core::ops::Add;
 
 use derive_where::derive_where;
 use digest::{Digest, Output, OutputSizeUser};
-use generic_array::sequence::Concat;
-use generic_array::typenum::{IsLess, Unsigned, U2, U256, U9};
-use generic_array::{ArrayLength, GenericArray};
+use hybrid_array::typenum::{Unsigned, U2, U9};
+use hybrid_array::{Array, ArrayN, ArraySize};
 use rand_core::{TryCryptoRng, TryRng};
 use subtle::ConstantTimeEq;
 
@@ -23,14 +22,14 @@ use crate::{CipherSuite, Error, Group, InternalError, Result};
 ///////////////
 
 pub(crate) const STR_FINALIZE: [u8; 8] = *b"Finalize";
-pub(crate) const STR_SEED: [u8; 5] = *b"Seed-";
-pub(crate) const STR_DERIVE_KEYPAIR: [u8; 13] = *b"DeriveKeyPair";
+pub(crate) const STR_SEED: ArrayN<u8, 5> = Array(*b"Seed-");
+pub(crate) const STR_DERIVE_KEYPAIR: ArrayN<u8, 13> = Array(*b"DeriveKeyPair");
 pub(crate) const STR_COMPOSITE: [u8; 9] = *b"Composite";
 pub(crate) const STR_CHALLENGE: [u8; 9] = *b"Challenge";
 pub(crate) const STR_INFO: [u8; 4] = *b"Info";
 pub(crate) const STR_OPRF: [u8; 7] = *b"OPRFV1-";
-pub(crate) const STR_HASH_TO_SCALAR: [u8; 13] = *b"HashToScalar-";
-pub(crate) const STR_HASH_TO_GROUP: [u8; 12] = *b"HashToGroup-";
+pub(crate) const STR_HASH_TO_SCALAR: ArrayN<u8, 13> = Array(*b"HashToScalar-");
+pub(crate) const STR_HASH_TO_GROUP: ArrayN<u8, 12> = Array(*b"HashToGroup-");
 
 /// Determines the mode of operation (either base mode or verifiable mode). This
 /// is only used for custom implementations for [`Group`].
@@ -172,7 +171,7 @@ pub(crate) fn generate_proof<CS: CipherSuite, R: TryRng + TryCryptoRng>(
         &STR_CHALLENGE,
     ];
 
-    let dst = Dst::new::<CS, _, _>(STR_HASH_TO_SCALAR, mode);
+    let dst = Dst::new::<CS, _>(STR_HASH_TO_SCALAR, mode);
     // This can't fail, the size of the `input` is known.
     let c_scalar = CS::Group::hash_to_scalar::<CS::Hash>(&h2_input, &dst.as_dst()).unwrap();
     let s_scalar = r - &(c_scalar * &k);
@@ -228,7 +227,7 @@ pub(crate) fn verify_proof<CS: CipherSuite>(
         &STR_CHALLENGE,
     ];
 
-    let dst = Dst::new::<CS, _, _>(STR_HASH_TO_SCALAR, mode);
+    let dst = Dst::new::<CS, _>(STR_HASH_TO_SCALAR, mode);
     // This can't fail, the size of the `input` is known.
     let c = CS::Group::hash_to_scalar::<CS::Hash>(&h2_input, &dst.as_dst()).unwrap();
 
@@ -266,7 +265,7 @@ fn compute_composites<
     let len = u16::try_from(c_slice.len()).map_err(|_| Error::Batch)?;
 
     // seedDST = "Seed-" || contextString
-    let seed_dst = Dst::new::<CS, _, _>(STR_SEED, mode);
+    let seed_dst = Dst::new::<CS, _>(STR_SEED, mode);
 
     // h1Input = I2OSP(len(Bm), 2) || Bm ||
     //           I2OSP(len(seedDST), 2) || seedDST
@@ -302,7 +301,7 @@ fn compute_composites<
             &STR_COMPOSITE,
         ];
 
-        let dst = Dst::new::<CS, _, _>(STR_HASH_TO_SCALAR, mode);
+        let dst = Dst::new::<CS, _>(STR_HASH_TO_SCALAR, mode);
         // This can't fail, the size of the `input` is known.
         let di = CS::Group::hash_to_scalar::<CS::Hash>(&h2_input, &dst.as_dst()).unwrap();
         m = c * &di + &m;
@@ -331,7 +330,7 @@ pub(crate) fn derive_key_internal<CS: CipherSuite>(
     info: &[u8],
     mode: Mode,
 ) -> Result<<CS::Group as Group>::Scalar, Error> {
-    let dst = Dst::new::<CS, _, _>(STR_DERIVE_KEYPAIR, mode);
+    let dst = Dst::new::<CS, _>(STR_DERIVE_KEYPAIR, mode);
 
     let info_len = i2osp_2(info.len()).map_err(|_| Error::DeriveKeyPair)?;
 
@@ -409,7 +408,7 @@ pub(crate) fn hash_to_group<CS: CipherSuite>(
     input: &[u8],
     mode: Mode,
 ) -> Result<<CS::Group as Group>::Elem> {
-    let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, mode);
+    let dst = Dst::new::<CS, _>(STR_HASH_TO_GROUP, mode);
     CS::Group::hash_to_curve::<CS::Hash>(&[input], &dst.as_dst()).map_err(|_| Error::Input)
 }
 
@@ -418,7 +417,7 @@ pub(crate) fn hash_to_group<CS: CipherSuite>(
 pub(crate) fn server_evaluate_hash_input<CS: CipherSuite>(
     input: &[u8],
     info: Option<&[u8]>,
-    issued_element: GenericArray<u8, <<CS as CipherSuite>::Group as Group>::ElemLen>,
+    issued_element: Array<u8, <<CS as CipherSuite>::Group as Group>::ElemLen>,
 ) -> Result<Output<CS::Hash>> {
     // OPRF & VOPRF
     // hashInput = I2OSP(len(input), 2) || input ||
@@ -447,24 +446,22 @@ pub(crate) fn server_evaluate_hash_input<CS: CipherSuite>(
         .finalize())
 }
 
-pub(crate) struct Dst<L: ArrayLength> {
-    dst_1: GenericArray<u8, L>,
-    dst_2: &'static str,
+pub(crate) struct Dst<L: ArraySize> {
+    dst_1: Array<u8, L>,
+    dst_2: &'static [u8],
 }
 
-impl<L: ArrayLength> Dst<L> {
-    pub(crate) fn new<CS, T, TL>(par_1: T, mode: Mode) -> Self
+impl<L: ArraySize> Dst<L> {
+    pub(crate) fn new<CS, TL>(par_1: Array<u8, TL>, mode: Mode) -> Self
     where
         CS: CipherSuite,
-        T: Into<GenericArray<u8, TL>>,
-        TL: ArrayLength + Add<U9, Output = L>,
+        TL: ArraySize + Add<U9, Output = L>,
     {
-        let par_1 = par_1.into();
         // Generates the contextString parameter as defined in
         // <https://www.rfc-editor.org/rfc/rfc9497#section-3.1>
-        let par_2 = GenericArray::from(STR_OPRF)
-            .concat([mode.to_u8()].into())
-            .concat((*b"-").into());
+        let par_2 = ArrayN::<u8, 7>::from(STR_OPRF)
+            .concat(ArrayN::<u8, 1>::from([mode.to_u8()]))
+            .concat(ArrayN::<u8, 1>::from(*b"-"));
 
         let dst_1 = par_1.concat(par_2);
         let dst_2 = CS::ID;
@@ -479,7 +476,7 @@ impl<L: ArrayLength> Dst<L> {
     }
 
     pub(crate) fn as_dst(&self) -> [&[u8]; 2] {
-        [&self.dst_1, self.dst_2.as_bytes()]
+        [&self.dst_1, self.dst_2]
     }
 
     pub(crate) fn i2osp_2(&self) -> [u8; 2] {
@@ -517,6 +514,6 @@ pub(crate) fn i2osp_2(input: usize) -> Result<[u8; 2], InternalError> {
         .map_err(|_| InternalError::I2osp)
 }
 
-pub(crate) fn i2osp_2_array<L: ArrayLength + IsLess<U256>>() -> GenericArray<u8, U2> {
+pub(crate) fn i2osp_2_array<L: Unsigned>() -> Array<u8, U2> {
     L::U16.to_be_bytes().into()
 }
