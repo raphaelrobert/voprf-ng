@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+* Updated elliptic-curve dependency to 0.14 and added the hash2curve 0.14
+  dependency
+* Updated digest dependency to 0.11
+* Updated sha2 dependency to 0.11
+* Replaced generic-array with hybrid-array 0.4 in the public API
+* `CipherSuite::ID` is now `&'static [u8]` to match `hash2curve::OprfParameters`
+* Added the `Group::SecurityLevel` associated type. The hash passed to
+  `Group::hash_to_curve` and `Group::hash_to_scalar` must output at least twice
+  this many bytes.
+* Elliptic curves implement `Group` through `hash2curve::MapToCurve` and
+  `CipherSuite` through `hash2curve::OprfParameters`
+
 ## 0.6.0-pre.3 (June 28, 2026)
 * RNG failures are now returned as `Error::Rng` instead of panicking or being
   reported as `Error::Protocol`

@@ -11,9 +11,8 @@ version = 2
 allow = ["Apache-2.0", "BSD-1-Clause", "BSD-3-Clause", "MIT", "Unicode-3.0"]
 
 [bans]
-# Two `rand_core` (0.6 + 0.9) and two `generic-array` (0.14 + 1) versions are
-# expected: `elliptic-curve` 0.13 still pins the older releases. Tracked by
-# TODO #150 (remove once `elliptic-curve` migrates).
+# Two `syn` versions (2 + 3) are expected because `curve25519-dalek-derive`
+# still depends on `syn` 2.
 multiple-versions = "warn"
 
 [sources]

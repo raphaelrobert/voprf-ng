@@ -7,9 +7,9 @@ use alloc::vec::Vec;
 use core::iter::{self, Map, Repeat, Zip};
 
 use derive_where::derive_where;
-use digest::{Digest, Output, OutputSizeUser};
-use generic_array::typenum::Unsigned;
-use generic_array::{ArrayLength, GenericArray};
+use digest::{Digest, Output};
+use hybrid_array::typenum::Unsigned;
+use hybrid_array::Array;
 use rand_core::{TryCryptoRng, TryRng};
 
 use crate::common::{
@@ -131,10 +131,7 @@ impl<CS: CipherSuite> PoprfClient<CS> {
         proof: &Proof<CS>,
         pk: <CS::Group as Group>::Elem,
         info: Option<&[u8]>,
-    ) -> Result<Output<CS::Hash>>
-    where
-        <<CS as CipherSuite>::Hash as OutputSizeUser>::OutputSize: ArrayLength,
-    {
+    ) -> Result<Output<CS::Hash>> {
         let clients = core::array::from_ref(self);
         let messages = core::array::from_ref(evaluation_element);
 
@@ -169,7 +166,6 @@ impl<CS: CipherSuite> PoprfClient<CS> {
         <&'a IC as IntoIterator>::IntoIter: ExactSizeIterator,
         &'a IM: 'a + IntoIterator<Item = &'a EvaluationElement<CS>>,
         <&'a IM as IntoIterator>::IntoIter: ExactSizeIterator,
-        <<CS as CipherSuite>::Hash as OutputSizeUser>::OutputSize: ArrayLength,
     {
         let unblinded_elements = poprf_unblind(clients, messages, pk, proof, info)?;
 
@@ -189,7 +185,7 @@ impl<CS: CipherSuite> PoprfServer<CS> {
     /// # Errors
     /// [`Error::Rng`] if the random number generator fails.
     pub fn new<R: TryRng + TryCryptoRng>(rng: &mut R) -> Result<Self> {
-        let mut seed = GenericArray::<_, <CS::Group as Group>::ScalarLen>::default();
+        let mut seed = Array::<u8, <CS::Group as Group>::ScalarLen>::default();
         rng.try_fill_bytes(&mut seed).map_err(|_| Error::Rng)?;
 
         Self::new_from_seed(&seed, &[])
@@ -567,7 +563,7 @@ fn compute_tweaked_key<CS: CipherSuite>(
     let info_len = i2osp_2(info.len()).map_err(|_| Error::Info)?;
     let framed_info = [STR_INFO.as_slice(), &info_len, info];
 
-    let dst = Dst::new::<CS, _, _>(STR_HASH_TO_SCALAR, Mode::Poprf);
+    let dst = Dst::new::<CS, _>(STR_HASH_TO_SCALAR, Mode::Poprf);
     // This can't fail, the size of the `input` is known.
     let m = CS::Group::hash_to_scalar::<CS::Hash>(&framed_info, &dst.as_dst()).unwrap();
 
@@ -600,7 +596,7 @@ fn compute_tweak<CS: CipherSuite>(
     let info_len = i2osp_2(info.len()).map_err(|_| Error::Info)?;
     let framed_info = [STR_INFO.as_slice(), &info_len, info];
 
-    let dst = Dst::new::<CS, _, _>(STR_HASH_TO_SCALAR, Mode::Poprf);
+    let dst = Dst::new::<CS, _>(STR_HASH_TO_SCALAR, Mode::Poprf);
     // This can't fail, the size of the `input` is known.
     let m = CS::Group::hash_to_scalar::<CS::Hash>(&framed_info, &dst.as_dst()).unwrap();
 
@@ -688,10 +684,7 @@ fn finalize_after_unblind<
     unblinded_elements: IE,
     inputs: II,
     info: Option<&'a [u8]>,
-) -> Result<FinalizeAfterUnblindResult<'a, CS, IE, II>>
-where
-    <<CS as CipherSuite>::Hash as OutputSizeUser>::OutputSize: ArrayLength,
-{
+) -> Result<FinalizeAfterUnblindResult<'a, CS, IE, II>> {
     if unblinded_elements.len() != inputs.len() {
         return Err(Error::Batch);
     }
@@ -745,7 +738,7 @@ mod tests {
     ) -> Output<CS::Hash> {
         let t = compute_tweak::<CS>(key, Some(info)).unwrap();
 
-        let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, mode);
+        let dst = Dst::new::<CS, _>(STR_HASH_TO_GROUP, mode);
         let point = CS::Group::hash_to_curve::<CS::Hash>(&[input], &dst.as_dst()).unwrap();
 
         // evaluatedElement = G.ScalarInverse(t) * blindedElement
@@ -791,7 +784,7 @@ mod tests {
             .blind_evaluate(&mut rng, &client_blind_result.message, Some(info))
             .unwrap();
         let wrong_pk = {
-            let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, Mode::Oprf);
+            let dst = Dst::new::<CS, _>(STR_HASH_TO_GROUP, Mode::Oprf);
             // Choose a group element that is unlikely to be the right public
             // key
             CS::Group::hash_to_curve::<CS::Hash>(&[b"msg"], &dst.as_dst()).unwrap()
