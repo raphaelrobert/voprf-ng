@@ -664,7 +664,8 @@ mod tests {
         let messages: Vec<_> = messages.collect();
         let wrong_pk = {
             let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, Mode::Oprf);
-            // Choose a group element that is unlikely to be the right public key
+            // Choose a group element that is unlikely to be the right public
+            // key
             CS::Group::hash_to_curve::<CS::Hash>(&[b"msg"], &dst.as_dst()).unwrap()
         };
         let client_finalize_result =
@@ -682,7 +683,8 @@ mod tests {
             .unwrap();
         let wrong_pk = {
             let dst = Dst::new::<CS, _, _>(STR_HASH_TO_GROUP, Mode::Oprf);
-            // Choose a group element that is unlikely to be the right public key
+            // Choose a group element that is unlikely to be the right public
+            // key
             CS::Group::hash_to_curve::<CS::Hash>(&[b"msg"], &dst.as_dst()).unwrap()
         };
         let client_finalize_result = client_blind_result.state.finalize(
@@ -713,13 +715,13 @@ mod tests {
             )
             .unwrap();
 
-        // We expect the outputs from client and server to be equal given an identical
-        // input
+        // We expect the outputs from client and server to be equal given an
+        // identical input
         let server_evaluate = server.evaluate(input).unwrap();
         assert_eq!(client_finalize, server_evaluate);
 
-        // We expect the outputs from client and server to be different given different
-        // inputs
+        // We expect the outputs from client and server to be different given
+        // different inputs
         let wrong_input = b"wrong input";
         let server_evaluate = server.evaluate(wrong_input).unwrap();
         assert!(client_finalize != server_evaluate);
