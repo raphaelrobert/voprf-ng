@@ -91,8 +91,8 @@ where
         let mut compat = CompatRng { rng, failed: false };
         let scalar = *SecretKey::<Self>::random(&mut compat).to_nonzero_scalar();
         // `SecretKey::random` drives an infallible RNG, so a failure of the
-        // wrapped fallible RNG is recorded in `failed` instead of panicking. The
-        // sentinel scalar produced on that path is discarded here.
+        // wrapped fallible RNG is recorded in `failed` instead of panicking.
+        // The sentinel scalar produced on that path is discarded here.
         if compat.failed {
             return Err(Error::Rng);
         }
