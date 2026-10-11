@@ -8,13 +8,7 @@ yanked = "deny"
 [licenses]
 version = 2
 # All dependencies use permissive licenses.
-allow = [
-  "Apache-2.0",
-  "BSD-1-Clause",
-  "BSD-3-Clause",
-  "MIT",
-  "Unicode-3.0",
-]
+allow = ["Apache-2.0", "BSD-1-Clause", "BSD-3-Clause", "MIT", "Unicode-3.0"]
 
 [bans]
 # Two `rand_core` (0.6 + 0.9) and two `generic-array` (0.14 + 1) versions are
