@@ -1,6 +1,7 @@
 # Changelog
 
-## Unreleased
+## 0.6.0-pre.4 (October 12, 2026)
+* Updated curve25519-dalek dependency to 5
 * Updated elliptic-curve dependency to 0.14 and added the hash2curve 0.14
   dependency
 * Updated digest dependency to 0.11
