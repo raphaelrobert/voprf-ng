@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.6.0 (October 27, 2026)
 * MSRV bumped to 1.88
 
 ## 0.6.0-pre.4 (October 12, 2026)
