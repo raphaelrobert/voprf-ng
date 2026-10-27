@@ -48,7 +48,7 @@ jobs:
           - --features serde
         toolchain:
           - stable
-          - 1.85.0
+          - 1.88.0
     name: test
     steps:
       - name: Checkout sources
@@ -81,7 +81,7 @@ jobs:
       matrix:
         toolchain:
           - stable
-          - 1.85.0
+          - 1.88.0
     steps:
       - name: Checkout sources
         uses: actions/checkout@v7
