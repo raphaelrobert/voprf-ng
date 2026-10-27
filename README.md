@@ -23,7 +23,7 @@ voprf-ng = "0.6.0-pre.4"
 
 ### Minimum Supported Rust Version
 
-Rust **1.85** or higher.
+Rust **1.88** or higher.
 
 Contributors
 ------------
