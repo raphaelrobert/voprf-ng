@@ -526,7 +526,7 @@
 //!   the [curve25519-dalek] documentation.
 //!
 //! [curve25519-dalek]:
-//!     (https://docs.rs/curve25519-dalek/4.0.0-pre.5/curve25519_dalek/index.html#backends)
+//!     https://docs.rs/curve25519-dalek/5/curve25519_dalek/index.html#backends
 
 #![no_std]
 #![cfg_attr(docsrs, feature(doc_cfg))]
